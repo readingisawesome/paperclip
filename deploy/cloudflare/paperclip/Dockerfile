@@ -8,8 +8,8 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-RUN npm install --omit=dev --no-audit --no-fund @paperclipai/server@2026.1106.0 paperclipai@2026.1106.0 \
-  && npm install --global --omit=dev --no-audit --no-fund opencode-ai \
+RUN npm install --omit=dev --no-audit --no-fund --allow-scripts=opencode-ai,protobufjs @paperclipai/server@2026.1106.0 paperclipai@2026.1106.0 \
+  && npm install --global --omit=dev --no-audit --no-fund --allow-scripts=opencode-ai opencode-ai \
   && npm cache clean --force
 
 ENV NODE_ENV=production \
