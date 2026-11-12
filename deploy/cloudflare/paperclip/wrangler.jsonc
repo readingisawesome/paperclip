@@ -1,0 +1,29 @@
+{
+  // Paperclip on Cloudflare Containers, behind Cloudflare Access.
+  "name": "paperclip",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-09",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "paperclip.sitkamediagroup.com", "custom_domain": true }],
+  "observability": { "enabled": true },
+  "triggers": { "crons": ["7 * * * *"] },
+  "ai": { "binding": "AI" },
+  "vars": {
+    "PUBLIC_URL": "https://paperclip.sitkamediagroup.com",
+    "ACCESS_TEAM_DOMAIN": "https://publishing.cloudflareaccess.com",
+    "ACCESS_AUD": "43c1571d1b680db0e3bdbcbc5b901470495a70242dd41cba539f4720cae0c8c4",
+    "AI_GATEWAY_ID": "agents",
+    "R2_BUCKET": "paperclip-storage",
+    "R2_ENDPOINT": "https://d343d32c4bc6ebfd85cc8ed291abec1e.r2.cloudflarestorage.com"
+  },
+  "containers": [
+    {
+      "class_name": "PaperclipBox",
+      "scheduling_policy": "durable_object",
+      "images": { "base": { "dockerfile": "./Dockerfile" } }
+    }
+  ],
+  "durable_objects": { "bindings": [{ "name": "PAPERCLIP", "class_name": "PaperclipBox" }] },
+  "exports": { "PaperclipBox": { "type": "durable-object", "storage": "sqlite" } }
+}
