@@ -11,6 +11,10 @@
 //                      gateway bills it to the account's AI Gateway credits
 //                      (Unified Billing), so no provider key is needed
 //                      anywhere. The gateway's spend limit caps the cost.
+//   "openrouter/vendor/model"  a model on OpenRouter, such as
+//                      "openrouter/mistralai/mistral-large". The gateway adds
+//                      the OpenRouter key stored on it (Provider Keys, alias
+//                      "default"); OpenRouter bills that account directly.
 const DEFAULT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
 // Shown on /v1/models. Any other catalog id still works if asked for by name.
@@ -36,6 +40,32 @@ const LISTED_MODELS = [
 function listedModels(env) {
   const extra = String(env.EXTRA_MODELS || "").split(",").map((m) => m.trim()).filter(Boolean);
   return [...new Set([...LISTED_MODELS, ...extra])];
+}
+
+async function viaOpenRouter(env, model, body, wantsStream) {
+  const { stream: _s, stream_options: _so, ...rest } = body;
+  const query = { ...rest, model: model.slice("openrouter/".length) };
+  const gateway = env.AI.gateway(env.AI_GATEWAY_ID);
+  let res;
+  for (const endpoint of ["chat/completions", "v1/chat/completions"]) {
+    res = await gateway.run({
+      provider: "openrouter",
+      endpoint,
+      headers: { "content-type": "application/json", "cf-aig-metadata": JSON.stringify({ app: env.APP_NAME || "agents" }) },
+      query,
+    });
+    if (res.status !== 404) break;
+  }
+  const text = await res.text();
+  if (!res.ok) {
+    const hint = res.status === 401 || /key|credential|auth/i.test(text)
+      ? " Add an OpenRouter key under AI Gateway > agents > Provider Keys."
+      : "";
+    return json({ error: { message: "OpenRouter (" + model + "): " + text.slice(0, 300) + hint } }, res.status === 401 ? 400 : res.status);
+  }
+  let completion;
+  try { completion = JSON.parse(text); } catch { return json({ error: { message: "OpenRouter sent an unreadable answer." } }, 502); }
+  return wantsStream ? asStream(completion) : json(completion);
 }
 
 function isThirdParty(model) {
@@ -92,6 +122,13 @@ export async function handleWorkersAI(request, env) {
   let body;
   try { body = await request.json(); } catch { return json({ error: { message: "Request body must be JSON." } }, 400); }
   const wantsStream = body.stream === true;
+  if (typeof body.model === "string" && body.model.startsWith("openrouter/")) {
+    try {
+      return await viaOpenRouter(env, body.model, body, wantsStream);
+    } catch (err) {
+      return json({ error: { message: "OpenRouter: " + String(err && err.message ? err.message : err).slice(0, 300) } }, 502);
+    }
+  }
   if (isThirdParty(body.model)) {
     const { model: thirdParty, stream: _s, stream_options: _so, ...rest } = body;
     // OpenAI's newer models reject max_tokens and want max_completion_tokens.

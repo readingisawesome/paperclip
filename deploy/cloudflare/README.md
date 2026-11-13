@@ -12,6 +12,7 @@ Every model call goes through the `agents` AI Gateway, which logs it and holds t
 
 - `@cf/...` model names run on Workers AI (Llama, Qwen, DeepSeek, Kimi, GLM, Gemma, Mistral).
 - `author/model` names from the AI Gateway catalog (for example `openai/gpt-5.5`, `anthropic/claude-sonnet-5`, `google/gemini-3.8-flash`, `xai/grok-4.6`, `alibaba/qwen3.8-max`) are billed to the account's AI Gateway credits through Unified Billing. No provider keys are needed.
+- `openrouter/<vendor>/<model>` names (for example `openrouter/mistralai/mistral-large`) go to OpenRouter through the same gateway, using the OpenRouter key stored on the gateway under Provider Keys. OpenRouter bills its own account, so set a credit limit on that key.
 - `GET /v1/models` lists the suggested models. Add more with the `EXTRA_MODELS` variable (comma-separated).
 
 Deploys run on Cloudflare Workers Builds from the `cloudflare-deploy` branch, one build per folder.
