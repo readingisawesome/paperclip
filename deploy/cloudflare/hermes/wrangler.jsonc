@@ -1,0 +1,27 @@
+{
+  // Hermes Agent on Cloudflare Containers, behind Cloudflare Access.
+  // hermes.sitkamediagroup.com stays with the Editorial House door; this uses hermes-agent.
+  "name": "hermes-agent",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-09",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "hermes-agent.sitkamediagroup.com", "custom_domain": true }],
+  "observability": { "enabled": true },
+  "ai": { "binding": "AI" },
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "https://publishing.cloudflareaccess.com",
+    "ACCESS_AUD": "fdfc52c9227855a9c29ccd135197488b039679a1d2cd845a593dfeed91a9522e",
+    "AI_GATEWAY_ID": "agents",
+    "APP_NAME": "hermes"
+  },
+  "containers": [
+    {
+      "class_name": "HermesBox",
+      "scheduling_policy": "durable_object",
+      "images": { "base": { "dockerfile": "./Dockerfile" } }
+    }
+  ],
+  "durable_objects": { "bindings": [{ "name": "HERMES", "class_name": "HermesBox" }] },
+  "exports": { "HermesBox": { "type": "durable-object", "storage": "sqlite" } }
+}

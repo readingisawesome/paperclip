@@ -1,0 +1,21 @@
+# Hermes Agent settings for Cloudflare. The model calls go to Workers AI
+# through the Worker in front of this container; no API key is stored here.
+model:
+  provider: custom
+  model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+  base_url: http://workers-ai.internal/v1
+  api_key: "workers-ai-via-cloudflare"
+
+webapp:
+  enabled: true
+  host: 0.0.0.0
+  port: 9120
+  public_url: "https://hermes-agent.sitkamediagroup.com"
+
+dashboard:
+  public_url: "https://hermes-agent.sitkamediagroup.com"
+  trusted_proxies:
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+    - "192.168.0.0/16"
+    - "100.64.0.0/10"
