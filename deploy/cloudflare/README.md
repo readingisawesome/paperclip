@@ -8,6 +8,10 @@ Two Workers, each fronting one Cloudflare Container. Both sit behind Cloudflare 
 
 Both containers sleep after 15 quiet minutes. Paperclip also wakes once an hour.
 
-Models come from Workers AI through the `agents` AI Gateway, which caps requests per hour. The containers call `http://workers-ai.internal/v1`, which the Worker answers with its AI binding, so no API key is stored in either container.
+Every model call goes through the `agents` AI Gateway, which logs it and holds the hourly request cap and the spend limit. The containers call `http://workers-ai.internal/v1`, an OpenAI-style endpoint the Worker answers with its AI binding, so no API key is stored in either container.
+
+- `@cf/...` model names run on Workers AI (Llama, Qwen, DeepSeek, Kimi, GLM, Gemma, Mistral).
+- `author/model` names from the AI Gateway catalog (for example `openai/gpt-5.5`, `anthropic/claude-sonnet-5`, `google/gemini-3.8-flash`, `xai/grok-4.6`, `alibaba/qwen3.8-max`) are billed to the account's AI Gateway credits through Unified Billing. No provider keys are needed.
+- `GET /v1/models` lists the suggested models. Add more with the `EXTRA_MODELS` variable (comma-separated).
 
 Deploys run on Cloudflare Workers Builds from the `cloudflare-deploy` branch, one build per folder.

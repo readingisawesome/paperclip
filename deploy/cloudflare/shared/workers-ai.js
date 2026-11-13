@@ -1,8 +1,46 @@
 // An OpenAI-style endpoint for the apps inside the containers. Requests to
 // http://workers-ai.internal/v1/... never leave Cloudflare: this code answers
-// them with the Workers AI binding, through the "agents" AI Gateway, which
-// holds the hourly request cap. No API key ever enters the container.
+// them with the AI binding, always through the "agents" AI Gateway, which
+// logs every call and holds the request cap and the spend limit. No API key
+// ever enters the container.
+//
+// Model names:
+//   "@cf/..."          a Workers AI model, run on Cloudflare.
+//   "author/model"     a third-party model from the AI Gateway catalog, such
+//                      as "openai/gpt-5.5" or "anthropic/claude-opus-5.5". The
+//                      gateway bills it to the account's AI Gateway credits
+//                      (Unified Billing), so no provider key is needed
+//                      anywhere. The gateway's spend limit caps the cost.
 const DEFAULT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+
+// Shown on /v1/models. Any other catalog id still works if asked for by name.
+const LISTED_MODELS = [
+  // Open models on Workers AI (no provider account needed)
+  "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+  "@cf/qwen/qwen3.8-27b",
+  "@cf/deepseek-ai/deepseek-v4-pro-0813",
+  "@cf/moonshotai/kimi-k2.7-code",
+  "@cf/zai-org/glm-5.2",
+  "@cf/google/gemma-4-26b-a4b-it",
+  "@cf/openai/gpt-oss-120b",
+  "@cf/mistralai/mistral-small-3.1-24b-instruct",
+  // Paid models through AI Gateway, billed to AI Gateway credits
+  "openai/gpt-5.5",
+  "anthropic/claude-opus-5.5",
+  "anthropic/claude-sonnet-5",
+  "google/gemini-3.8-flash",
+  "xai/grok-4.6",
+  "alibaba/qwen3.8-max",
+];
+
+function listedModels(env) {
+  const extra = String(env.EXTRA_MODELS || "").split(",").map((m) => m.trim()).filter(Boolean);
+  return [...new Set([...LISTED_MODELS, ...extra])];
+}
+
+function isThirdParty(model) {
+  return typeof model === "string" && !model.startsWith("@cf/") && /^[a-z0-9][a-z0-9._-]*\/[^\s]+$/i.test(model);
+}
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
@@ -46,22 +84,39 @@ export async function handleWorkersAI(request, env) {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, "");
   if (request.method === "GET" && path.endsWith("/models")) {
-    return json({ object: "list", data: [{ id: DEFAULT_MODEL, object: "model", owned_by: "workers-ai" }] });
+    return json({ object: "list", data: listedModels(env).map((id) => ({ id, object: "model", owned_by: id.startsWith("@cf/") ? "workers-ai" : id.split("/")[0] })) });
   }
   if (request.method !== "POST" || !path.endsWith("/chat/completions")) {
     return json({ error: { message: "Only /v1/chat/completions and /v1/models are available here." } }, 404);
   }
   let body;
   try { body = await request.json(); } catch { return json({ error: { message: "Request body must be JSON." } }, 400); }
-  const model = typeof body.model === "string" && body.model.startsWith("@cf/") ? body.model : DEFAULT_MODEL;
   const wantsStream = body.stream === true;
+  if (isThirdParty(body.model)) {
+    const { model: thirdParty, stream: _s, stream_options: _so, ...rest } = body;
+    // OpenAI's newer models reject max_tokens and want max_completion_tokens.
+    if (thirdParty.startsWith("openai/") && rest.max_tokens !== undefined) {
+      if (rest.max_completion_tokens === undefined) rest.max_completion_tokens = rest.max_tokens;
+      delete rest.max_tokens;
+    }
+    try {
+      const result = await env.AI.run(thirdParty, rest, { gateway: { id: env.AI_GATEWAY_ID, metadata: { app: env.APP_NAME || "agents" } } });
+      const completion = toOpenAI(thirdParty, result);
+      return wantsStream ? asStream(completion) : json(completion);
+    } catch (err) {
+      const msg = String(err && err.message ? err.message : err);
+      const status = /rate limit|429|spend/i.test(msg) ? 429 : /credential|key|400/i.test(msg) ? 400 : 502;
+      return json({ error: { message: "AI Gateway (" + thirdParty + "): " + msg.slice(0, 300) } }, status);
+    }
+  }
+  const model = typeof body.model === "string" && body.model.startsWith("@cf/") ? body.model : DEFAULT_MODEL;
   const inputs = { messages: body.messages || [] };
   for (const k of ["tools", "temperature", "top_p", "max_tokens", "response_format", "seed", "frequency_penalty", "presence_penalty"]) {
     if (body[k] !== undefined) inputs[k] = body[k];
   }
   if (body.max_completion_tokens !== undefined && inputs.max_tokens === undefined) inputs.max_tokens = body.max_completion_tokens;
   try {
-    const result = await env.AI.run(model, inputs, { gateway: { id: env.AI_GATEWAY_ID } });
+    const result = await env.AI.run(model, inputs, { gateway: { id: env.AI_GATEWAY_ID, metadata: { app: env.APP_NAME || "agents" } } });
     const completion = toOpenAI(model, result);
     return wantsStream ? asStream(completion) : json(completion);
   } catch (err) {

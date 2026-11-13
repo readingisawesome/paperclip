@@ -82,6 +82,13 @@ export class PaperclipBox extends DurableObject {
   }
 }
 
+// One Paperclip, placed in western North America so it sits near its
+// database (Supabase, us-west-1). The name changed from "main" to "west" so
+// the placement hint takes effect; all of Paperclip's data is in Postgres.
+function box(env) {
+  return env.PAPERCLIP.get(env.PAPERCLIP.idFromName("west"), { locationHint: "wnam" });
+}
+
 export default {
   async fetch(request, env) {
     const who = await verifyAccess(request, env).catch(() => null);
@@ -89,11 +96,11 @@ export default {
     if (!env.DATABASE_URL) {
       return page("Almost ready", "Paperclip is waiting for its database setting (DATABASE_URL). Once it's added in Cloudflare, reload this page.", 503);
     }
-    return env.PAPERCLIP.getByName("main").fetch(request);
+    return box(env).fetch(request);
   },
   // Hourly wake so scheduled agents get a chance to run, then it sleeps again.
   async scheduled(_event, env, ctx) {
     if (!env.DATABASE_URL) return;
-    ctx.waitUntil(env.PAPERCLIP.getByName("main").wake());
+    ctx.waitUntil(box(env).wake());
   },
 };

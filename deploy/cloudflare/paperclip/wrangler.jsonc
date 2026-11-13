@@ -14,6 +14,7 @@
     "ACCESS_TEAM_DOMAIN": "https://publishing.cloudflareaccess.com",
     "ACCESS_AUD": "43c1571d1b680db0e3bdbcbc5b901470495a70242dd41cba539f4720cae0c8c4",
     "AI_GATEWAY_ID": "agents",
+    "APP_NAME": "paperclip",
     "R2_BUCKET": "paperclip-storage",
     "R2_ENDPOINT": "https://d343d32c4bc6ebfd85cc8ed291abec1e.r2.cloudflarestorage.com"
   },

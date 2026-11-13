@@ -12,7 +12,8 @@
   "vars": {
     "ACCESS_TEAM_DOMAIN": "https://publishing.cloudflareaccess.com",
     "ACCESS_AUD": "fdfc52c9227855a9c29ccd135197488b039679a1d2cd845a593dfeed91a9522e",
-    "AI_GATEWAY_ID": "agents"
+    "AI_GATEWAY_ID": "agents",
+    "APP_NAME": "hermes"
   },
   "containers": [
     {
